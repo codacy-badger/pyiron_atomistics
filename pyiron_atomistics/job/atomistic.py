@@ -9,7 +9,7 @@ import numpy as np
 
 from pyiron_atomistics.structure.atoms import Atoms
 from pyiron_base.objects.generic.parameters import GenericParameters
-from pyiron_base.objects.job.generic import GenericJob as GenericJobCore
+from pyiron_base.objects.job.executablejob import GenericJob as GenericJobCore
 from pyiron_base.objects.job.master import GenericMaster
 
 try:
