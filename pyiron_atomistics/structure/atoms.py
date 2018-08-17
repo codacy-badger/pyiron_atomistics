@@ -1045,14 +1045,26 @@ class Atoms(object):
         warnings.filterwarnings("ignore")
         return analyse_ovito_cna_adaptive(atoms=self, mode=mode)
 
-    def plot3d(self, spacefill=True, show_cell=True, camera='perspective', particle_size=0.5, background='white', color_scheme='element', show_axes=True):
+    def plot3d(self, spacefill=True, show_cell=True, camera='perspective', particle_size=0.5, background='white',
+               color_scheme='element', show_axes=True):
         """
-        Possible color schemes: 
-          " ", "picking", "random", "uniform", "atomindex", "residueindex",
-          "chainindex", "modelindex", "sstruc", "element", "resname", "bfactor",
-          "hydrophobicity", "value", "volume", "occupancy"
+        Visualize the structure in 3D using NGLview
+
+        Args:
+            spacefill (bool): True if the atoms are represented as spacefill objects as opposed to ball-and-stick
+                              representations
+            show_cell (bool): True if the unitcell is also shown
+            camera (str): Camera angle 'orthographic' or 'perspecitve'
+            particle_size (float): Size of the representations
+            background (str): Colour of the background
+            color_scheme (str): Possible color schemes are
+                                  " ", "picking", "random", "uniform", "atomindex", "residueindex",
+                                  "chainindex", "modelindex", "sstruc", "element", "resname", "bfactor",
+                                  "hydrophobicity", "value", "volume", "occupancy"
+            show_axes (bool): True if the axes are to be shown
 
         Returns:
+            nglview.widget.NGLWidget: The visualized structure
 
         """
         try:  # If the graphical packages are not available, the GUI will not work.
