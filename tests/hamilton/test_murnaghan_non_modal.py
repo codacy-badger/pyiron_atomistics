@@ -35,7 +35,7 @@ class TestMurnaghan(unittest.TestCase):
     def tearDownClass(cls):
         project = Project('testing_murnaghan_non_modal')
         project.remove_jobs(recursive=True)
-        project.remove(enforce=True)
+        project.remove(enable=True, enforce=True)
 
     def test_run(self):
         # Even though the test is completed successful
@@ -56,7 +56,7 @@ class TestMurnaghan(unittest.TestCase):
         self.assertTrue(murn.status.finished)
         murn.remove()
         job_ser.remove()
-        self.project.remove(enforce=True)
+        self.project.remove(enable=True, enforce=True)
 
 
 if __name__ == '__main__':

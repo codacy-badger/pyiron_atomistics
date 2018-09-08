@@ -1045,26 +1045,55 @@ class Atoms(object):
         warnings.filterwarnings("ignore")
         return analyse_ovito_cna_adaptive(atoms=self, mode=mode)
 
-    def plot3d(self, spacefill=True, show_cell=True, camera='perspective', particle_size=0.5, background='white',
-               color_scheme='element', show_axes=True):
-        """
-        Visualize the structure in 3D using NGLview
+    def analyse_ovito_centro_symmetry(atoms, num_neighbors=12):
+        import warnings
+        from pyiron_atomistics.structure.ovito import analyse_ovito_centro_symmetry
+        warnings.filterwarnings("ignore")
+        return analyse_ovito_centro_symmetry(atoms, num_neighbors=num_neighbors)
 
-        Args:
-            spacefill (bool): True if the atoms are represented as spacefill objects as opposed to ball-and-stick
-                              representations
-            show_cell (bool): True if the unitcell is also shown
-            camera (str): Camera angle 'orthographic' or 'perspecitve'
-            particle_size (float): Size of the representations
-            background (str): Colour of the background
-            color_scheme (str): Possible color schemes are
-                                  " ", "picking", "random", "uniform", "atomindex", "residueindex",
-                                  "chainindex", "modelindex", "sstruc", "element", "resname", "bfactor",
-                                  "hydrophobicity", "value", "volume", "occupancy"
-            show_axes (bool): True if the axes are to be shown
+    def analyse_ovito_voronoi_volume(atoms):
+        import warnings
+        from pyiron_atomistics.structure.ovito import analyse_ovito_voronoi_volume
+        warnings.filterwarnings("ignore")
+        return analyse_ovito_voronoi_volume(atoms)
+
+    @staticmethod
+    def _ngl_write_cell(a1, a2, a3, f1=90, f2=90, f3=90):
+        return 'CRYST1 {:8.3f} {:8.3f} {:8.3f} {:6.2f} {:6.2f} {:6.2f} P 1\n'.format(a1, a2, a3, f1, f2, f3)
+
+    @staticmethod
+    def _ngl_write_atom(num, species, group, num2, coords=None, c0=None, c1=None):
+        x, y, z = coords
+        return 'ATOM {:>6} {:>4} {:>4} {:>5} {:10.3f} {:7.3f} {:7.3f} {:5.2f} {:5.2f} {:>11} \n'.format(num, species, group, num2, x, y, z, c0, c1, species)
+
+    def _ngl_write_structure(self, elements, positions, cell, custom_array=None):
+        from ase.geometry import cell_to_cellpar, cellpar_to_cell
+        cellpar = cell_to_cellpar(cell)
+        exportedcell = cellpar_to_cell(cellpar)
+        rotation = np.linalg.solve(cell, exportedcell)
+
+        pdb_str = self._ngl_write_cell(cellpar[0], cellpar[1], cellpar[2], cellpar[3], cellpar[4], cellpar[5])
+        pdb_str += 'MODEL     1\n'
+        if custom_array is None:
+            custom_array = np.ones(len(positions))
+        else:
+            custom_array = (custom_array-np.min(custom_array))/(np.max(custom_array)-np.min(custom_array))
+        for i, p in enumerate(positions):
+            if rotation is not None:
+                p = p.dot(rotation)
+
+            pdb_str += self._ngl_write_atom(i, elements[i], group=elements[i], num2=i, coords=p, c0=custom_array[i], c1=0.0)
+        pdb_str += 'ENDMDL \n'
+        return pdb_str
+
+    def plot3d(self, spacefill=True, show_cell=True, camera='perspective', particle_size=0.5, background='white', color_scheme=None, show_axes=True, custom_array=None):
+        """
+        Possible color schemes: 
+          " ", "picking", "random", "uniform", "atomindex", "residueindex",
+          "chainindex", "modelindex", "sstruc", "element", "resname", "bfactor",
+          "hydrophobicity", "value", "volume", "occupancy"
 
         Returns:
-            nglview.widget.NGLWidget: The visualized structure
 
         """
         try:  # If the graphical packages are not available, the GUI will not work.
@@ -1073,9 +1102,14 @@ class Atoms(object):
             raise ImportError("The package nglview needs to be installed for the plot3d() function!")
         # Always visualize the parent basis
         parent_basis = self.get_parent_basis()
-        view = nglview.show_ase(parent_basis)
+        struct = nglview.TextStructure(self._ngl_write_structure(parent_basis.get_chemical_symbols(), self.positions, self.cell, custom_array=custom_array))
+        view = nglview.NGLWidget(struct)
         if spacefill:
-            view.add_spacefill(radius_type='vdw', color_scheme=color_scheme, scale=particle_size)
+            if color_scheme is None and custom_array is not None:
+                color_scheme = 'occupancy'
+            elif color_scheme is None:
+                color_scheme = 'element'
+            view.add_spacefill(radius_type='vdw', color_scheme=color_scheme, radius=particle_size)
             # view.add_spacefill(radius=1.0)
             view.remove_ball_and_stick()
         else:
@@ -1084,15 +1118,51 @@ class Atoms(object):
             if parent_basis.cell is not None:
                 view.add_unitcell()
         if show_axes:
-            view.shape.add_arrow([-2, -2, -2], [2, -2, -2], [1, 0, 0], 0.5)
-            view.shape.add_arrow([-2, -2, -2], [-2, 2, -2], [0, 1, 0], 0.5)
-            view.shape.add_arrow([-2, -2, -2], [-2, -2, 2], [0, 0, 1], 0.5)
+            axes_origin = -np.ones(3)
+            view.shape.add_arrow(list(axes_origin), list(axes_origin+np.array([1, 0, 0])), [1, 0, 0], 0.1)
+            view.shape.add_arrow(list(axes_origin), list(axes_origin+np.array([0, 1, 0])), [0, 1, 0], 0.1)
+            view.shape.add_arrow(list(axes_origin), list(axes_origin+np.array([0, 0, 1])), [0, 0, 1], 0.1)
         if camera!='perspective' and camera!='orthographic':
             print('Only perspective or orthographic is permitted')
             return None
         view.camera = camera
         view.background = background
         return view
+
+    def plot3d_ase(self, spacefill=True, show_cell=True, camera='perspective', particle_size=0.5, background='white', color_scheme='element', show_axes=True):
+         """
+         Possible color schemes:
+           " ", "picking", "random", "uniform", "atomindex", "residueindex",
+           "chainindex", "modelindex", "sstruc", "element", "resname", "bfactor",
+           "hydrophobicity", "value", "volume", "occupancy"
+         Returns:
+         """
+         try:  # If the graphical packages are not available, the GUI will not work.
+             import nglview
+         except ImportError:
+             raise ImportError("The package nglview needs to be installed for the plot3d() function!")
+         # Always visualize the parent basis
+         parent_basis = self.get_parent_basis()
+         view = nglview.show_ase(parent_basis)
+         if spacefill:
+             view.add_spacefill(radius_type='vdw', color_scheme=color_scheme, radius=particle_size)
+             # view.add_spacefill(radius=1.0)
+             view.remove_ball_and_stick()
+         else:
+             view.add_ball_and_stick()
+         if show_cell:
+             if parent_basis.cell is not None:
+                 view.add_unitcell()
+         if show_axes:
+             view.shape.add_arrow([-2, -2, -2], [2, -2, -2], [1, 0, 0], 0.5)
+             view.shape.add_arrow([-2, -2, -2], [-2, 2, -2], [0, 1, 0], 0.5)
+             view.shape.add_arrow([-2, -2, -2], [-2, -2, 2], [0, 0, 1], 0.5)
+         if camera!='perspective' and camera!='orthographic':
+             print('Only perspective or orthographic is permitted')
+             return None
+         view.camera = camera
+         view.background = background
+         return view
 
     def pos_xyz(self):
         """
