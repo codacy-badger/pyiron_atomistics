@@ -214,6 +214,9 @@ class AtomisticGenericJob(GenericJobCore):
         """
         if not self.structure and self._generic_input['structure'] == 'atoms':
             raise ValueError('This job does not contain a valid structure: {}'.format(self.job_name))
+        structure_neigh = self.structure.get_neighbors()
+        if np.min(structure_neigh.distances.flatten()) < 0.1:
+            raise ValueError('The minimum distance between two atoms is 0.1A')
 
     def db_entry(self):
         """
